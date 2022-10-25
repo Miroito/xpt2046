@@ -26,17 +26,14 @@ pub use crate::{
     exti_pin::Xpt2046Exti,
 };
 use core::{fmt::Debug, ops::RemAssign};
+#[cfg(feature = "with_defmt")]
+use defmt::Format;
 use embedded_graphics_core::{
     draw_target::DrawTarget,
     geometry::Point,
     pixelcolor::{Rgb565, RgbColor},
 };
-use embedded_hal::{
-    delay::blocking::DelayUs, digital::blocking::OutputPin, spi::blocking::Transfer,
-};
-
-#[cfg(feature = "with_defmt")]
-use defmt::Format;
+use embedded_hal::{blocking::delay::DelayMs, blocking::spi::Transfer, digital::v2::OutputPin};
 
 pub mod calibration;
 pub mod error;
@@ -238,9 +235,11 @@ where
         self.cs
             .set_low()
             .map_err(|e| Error::Bus(BusError::Pin(e)))?;
-        self.spi
-            .transfer(&mut self.rx_buff, &self.tx_buff)
+        let read = self
+            .spi
+            .transfer(&mut self.tx_buff)
             .map_err(|e| Error::Bus(BusError::Spi(e)))?;
+        self.rx_buff.copy_from_slice(read);
         self.cs
             .set_high()
             .map_err(|e| Error::Bus(BusError::Pin(e)))?;
@@ -297,14 +296,14 @@ where
     }
 
     /// Reset the driver and preload tx buffer with register data.
-    pub fn init<D: DelayUs>(
+    pub fn init<D: DelayMs<u16>>(
         &mut self,
         delay: &mut D,
     ) -> Result<(), Error<BusError<SPIError, CSError>>> {
         self.tx_buff[0] = 0x80;
         self.cs.set_high()?;
         self.spi_read()?;
-        delay.delay_ms(1).map_err(|_| Error::Delay)?;
+        delay.delay_ms(1);
 
         /*
          * Load the tx_buffer with the channels config
@@ -406,7 +405,7 @@ where
     ) -> Result<(), Error<BusError<SPIError, CSError>>>
     where
         DT: DrawTarget<Color = Rgb565>,
-        DELAY: DelayUs,
+        DELAY: DelayMs<u16>,
     {
         let mut calibration_count = 0;
         let mut retry = 3;
