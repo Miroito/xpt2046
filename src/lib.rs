@@ -330,8 +330,7 @@ where
     ) -> Result<(), Error<BusError<SPIError, CSError>>> {
         match self.screen_state {
             TouchScreenState::IDLE => {
-                if self.operation_mode == TouchScreenOperationMode::CALIBRATION && self.irq.is_low()
-                {
+                if self.operation_mode == TouchScreenOperationMode::NORMAL && self.irq.is_low() {
                     self.screen_state = TouchScreenState::PRESAMPLING;
                 }
             }
